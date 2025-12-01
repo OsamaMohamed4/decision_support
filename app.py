@@ -12,12 +12,14 @@ from io import BytesIO
 import warnings
 warnings.filterwarnings("ignore", message="The keyword arguments have been deprecated")
 
+# ================== إعدادات الصفحة ==================
 st.set_page_config(
-    page_title="Smart Agriculture Decision Support System",
+    page_title="نظام مساندة القرار للزراعة الذكية",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
+# ================== CSS مخصص ==================
 st.markdown("""
 <style>
     .main {background-color: #f0f8f5;}
@@ -41,6 +43,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# ================== توليد البيانات التاريخية ==================
 @st.cache_data
 def generate_historical_data(n_samples=500):
     np.random.seed(42)
@@ -54,8 +57,8 @@ def generate_historical_data(n_samples=500):
         'nitrogen': np.random.normal(40, 10, n_samples),
         'phosphorus': np.random.normal(35, 8, n_samples),
         'potassium': np.random.normal(30, 7, n_samples),
-        'crop_type': np.random.choice(['Tomato', 'Cucumber', 'Wheat', 'Corn', 'Lettuce'], n_samples),
-        'soil_type': np.random.choice(['Clay', 'Sandy', 'Loam'], n_samples),
+        'crop_type': np.random.choice(['طماطم', 'خيار', 'قمح', 'ذرة', 'خس'], n_samples),
+        'soil_type': np.random.choice(['طينية', 'رملية', 'صفراء'], n_samples),
     }
     
     df = pd.DataFrame(data)
@@ -79,6 +82,7 @@ def generate_historical_data(n_samples=500):
     
     return df
 
+# ================== بناء نموذج AI ==================
 @st.cache_resource
 def train_ml_models():
     df = generate_historical_data(500)
@@ -105,85 +109,95 @@ def train_ml_models():
     
     return model_yield, model_water, le_crop, le_soil
 
+# ================== بيانات احتياطية ==================
 def get_fallback_weather():
     return {
         'temperature': 25.0,
         'humidity': 60.0,
         'rainfall': 0.0,
         'wind_speed': 10.0,
-        'description': 'Moderate',
+        'description': 'معتدل',
         'pressure': 1013.0,
         'visibility': 10.0
     }
 
+# ================== API الطقس الحقيقي ==================
 def get_real_weather(city="Cairo", api_key=None):
+    
+    
     if not api_key or api_key.strip() == "":
-        st.warning("No API Key entered - Using simulated data")
+        st.warning("⚠️ لم يتم إدخال API Key - يتم استخدام بيانات وهمية")
         weather_data = {
             'temperature': np.random.normal(25, 5),
             'humidity': np.random.normal(60, 10),
             'rainfall': max(0, np.random.exponential(3) if np.random.random() > 0.7 else 0),
             'wind_speed': np.random.uniform(5, 25),
-            'description': np.random.choice(['Clear', 'Partly Cloudy', 'Rainy', 'Sunny']),
+            'description': np.random.choice(['صافي', 'غائم جزئياً', 'ممطر', 'مشمس']),
             'pressure': np.random.uniform(1010, 1020),
             'visibility': np.random.uniform(8, 10)
         }
         return weather_data
     
     try:
-        base_url = "http://api.openweathermap.org/data/2.5/weather"
+        
+        base_url = "https://api.openweathermap.org/data/2.5/weather"
+        
         
         params = {
             'q': city,
             'appid': api_key.strip(),
-            'units': 'metric',
-            'lang': 'en'
+            'units': 'metric',  
+            'lang': 'ar'       
         }
+        
         
         response = requests.get(base_url, params=params, timeout=10)
      
         if response.status_code == 200:
             data = response.json()
             
+           
             weather_data = {
                 'temperature': float(data['main']['temp']),
                 'humidity': float(data['main']['humidity']),
-                'rainfall': float(data.get('rain', {}).get('1h', 0)),
-                'wind_speed': float(data['wind']['speed']) * 3.6,
-                'description': data['weather'][0]['description'] if data.get('weather') else 'N/A',
+                'rainfall': float(data.get('rain', {}).get('1h', 0)),  # المطر في آخر ساعة
+                'wind_speed': float(data['wind']['speed']) * 3.6,  # تحويل من m/s إلى km/h
+                'description': data['weather'][0]['description'] if data.get('weather') else 'غير متاح',
                 'pressure': float(data['main']['pressure']),
-                'visibility': float(data.get('visibility', 10000)) / 1000
+                'visibility': float(data.get('visibility', 10000)) / 1000  # تحويل لـ km
             }
             
-            st.success(f"Real weather data fetched successfully from {city}!")
+            st.success(f"✅ تم جلب بيانات الطقس الحقيقية من {city} بنجاح!")
             return weather_data
             
         elif response.status_code == 401:
-            st.error("Invalid API Key! Please check your key.")
-            st.info("Get a free key from: https://openweathermap.org/api")
+            st.error("❌ API Key غير صحيح! تحقق من المفتاح.")
+            st.info("💡 احصل على مفتاح مجاني من: https://openweathermap.org/api")
             return get_fallback_weather()
             
         elif response.status_code == 404:
-            st.error(f"City '{city}' not found! Try another city name.")
+            st.error(f"❌ المدينة '{city}' غير موجودة! جرب اسم مدينة آخر بالإنجليزية.")
             return get_fallback_weather()
             
         else:
-            st.error(f"API connection error: {response.status_code}")
+            st.error(f"❌ خطأ في الاتصال بالـ API: {response.status_code}")
             return get_fallback_weather()
             
     except requests.exceptions.Timeout:
-        st.error("Connection timeout - Check your internet")
+        st.error("❌ انتهى وقت الاتصال - تحقق من الإنترنت")
         return get_fallback_weather()
         
     except requests.exceptions.ConnectionError:
-        st.error("Internet connection error")
+        st.error("❌ خطأ في الاتصال بالإنترنت")
         return get_fallback_weather()
         
     except Exception as e:
-        st.error(f"Unexpected error: {str(e)}")
+        st.error(f"❌ خطأ غير متوقع: {str(e)}")
         return get_fallback_weather()
 
+# ================== توليد بيانات الطقس ==================
 def generate_weather_forecast(days=7):
+    """توليد توقعات الطقس"""
     dates = [datetime.now() + timedelta(days=i) for i in range(days)]
     
     base_temp = 25
@@ -200,8 +214,10 @@ def generate_weather_forecast(days=7):
     
     return forecast_df
 
+# ================== معلومات المحاصيل ==================
 CROPS_INFO = {
-    'Tomato': {
+    'طماطم': {
+        'icon': '🍅', 
         'growth_days': 80, 
         'min_temp': 18, 
         'max_temp': 30, 
@@ -210,7 +226,8 @@ CROPS_INFO = {
         'price_per_kg': 5.0,
         'yield_per_m2': 8
     },
-    'Cucumber': {
+    'خيار': {
+        'icon': '🥒', 
         'growth_days': 60, 
         'min_temp': 20, 
         'max_temp': 32, 
@@ -219,7 +236,8 @@ CROPS_INFO = {
         'price_per_kg': 4.5,
         'yield_per_m2': 10
     },
-    'Wheat': {
+    'قمح': {
+        'icon': '🌾', 
         'growth_days': 120, 
         'min_temp': 15, 
         'max_temp': 25, 
@@ -228,7 +246,8 @@ CROPS_INFO = {
         'price_per_kg': 3.0,
         'yield_per_m2': 5
     },
-    'Corn': {
+    'ذرة': {
+        'icon': '🌽', 
         'growth_days': 90, 
         'min_temp': 18, 
         'max_temp': 35, 
@@ -237,7 +256,8 @@ CROPS_INFO = {
         'price_per_kg': 3.5,
         'yield_per_m2': 6
     },
-    'Lettuce': {
+    'خس': {
+        'icon': '🥬', 
         'growth_days': 45, 
         'min_temp': 12, 
         'max_temp': 20, 
@@ -249,15 +269,16 @@ CROPS_INFO = {
 }
 
 SOIL_INFO = {
-    'Clay': {'retention': 0.8, 'drainage': 0.3, 'nutrients': 0.9},
-    'Sandy': {'retention': 0.3, 'drainage': 0.9, 'nutrients': 0.4},
-    'Loam': {'retention': 0.6, 'drainage': 0.6, 'nutrients': 0.7}
+    'طينية': {'retention': 0.8, 'drainage': 0.3, 'nutrients': 0.9},
+    'رملية': {'retention': 0.3, 'drainage': 0.9, 'nutrients': 0.4},
+    'صفراء': {'retention': 0.6, 'drainage': 0.6, 'nutrients': 0.7}
 }
 
+# ================== دراسات الحالة ==================
 CASE_STUDIES = {
-    'Case 1: Small Tomato Farm': {
-        'crop': 'Tomato',
-        'soil': 'Clay',
+    'حالة 1: مزرعة طماطم صغيرة': {
+        'crop': 'طماطم',
+        'soil': 'طينية',
         'area': 500,
         'soil_moisture': 55,
         'ph': 6.5,
@@ -265,11 +286,11 @@ CASE_STUDIES = {
         'phosphorus': 38,
         'potassium': 32,
         'water': 2000,
-        'description': 'Small farm in moderate climate, fertile soil, good water resources'
+        'description': 'مزرعة صغيرة في منطقة معتدلة المناخ، تربة خصبة، موارد مياه جيدة'
     },
-    'Case 2: Commercial Cucumber Project': {
-        'crop': 'Cucumber',
-        'soil': 'Loam',
+    'حالة 2: مشروع خيار تجاري': {
+        'crop': 'خيار',
+        'soil': 'صفراء',
         'area': 1000,
         'soil_moisture': 48,
         'ph': 6.2,
@@ -277,11 +298,11 @@ CASE_STUDIES = {
         'phosphorus': 35,
         'potassium': 28,
         'water': 3500,
-        'description': 'Medium commercial project, balanced soil, aiming for maximum productivity'
+        'description': 'مشروع تجاري متوسط، تربة متوازنة، هدف تحقيق أعلى إنتاجية'
     },
-    'Case 3: Wheat Farm in Harsh Environment': {
-        'crop': 'Wheat',
-        'soil': 'Sandy',
+    'حالة 3: مزرعة قمح في بيئة صعبة': {
+        'crop': 'قمح',
+        'soil': 'رملية',
         'area': 2000,
         'soil_moisture': 35,
         'ph': 7.0,
@@ -289,11 +310,13 @@ CASE_STUDIES = {
         'phosphorus': 25,
         'potassium': 22,
         'water': 2500,
-        'description': 'Large farm in desert environment, challenges with water and nutrient deficiency'
+        'description': 'مزرعة كبيرة في بيئة صحراوية، تحدي نقص المياه والعناصر الغذائية'
     }
 }
 
+# ================== حساب التكاليف ==================
 def calculate_costs(crop, area, predicted_yield, predicted_water):
+    """حساب التكاليف والأرباح"""
     crop_info = CROPS_INFO[crop]
     
     seeds_cost = area * 0.5
@@ -323,61 +346,71 @@ def calculate_costs(crop, area, predicted_yield, predicted_water):
         'roi': roi
     }
 
+# ================== تحميل النماذج ==================
 model_yield, model_water, le_crop, le_soil = train_ml_models()
 
-st.markdown("<h1>Smart Agriculture Decision Support System - AI Powered</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align:center; color:#666;'>Smart decisions powered by AI and real data</p>", unsafe_allow_html=True)
+# ================== الواجهة الرئيسية ==================
+st.markdown("<h1>🌾 نظام مساندة القرار للزراعة الذكية - AI Powered</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center; color:#666;'>قرارات ذكية مدعومة بالذكاء الاصطناعي والبيانات الحقيقية</p>", unsafe_allow_html=True)
 
-tab1, tab2, tab3 = st.tabs(["Home", "Case Studies", "Financial Analysis"])
+# ================== Tabs ==================
+tab1, tab2, tab3 = st.tabs(["🏠 الرئيسية", "📊 دراسات الحالة", "💰 التحليل المالي"])
 
+# ================== TAB 1: الرئيسية ==================
 with tab1:
+    # Sidebar
     with st.sidebar:
-        st.header("Project Settings")
+        st.header("⚙️ إعدادات المشروع")
         
-        st.subheader("Weather Settings")
+        # قسم API الطقس
+        st.subheader("🌍 إعدادات الطقس")
         api_key = st.text_input(
             "OpenWeatherMap API Key",
             type="password",
-            placeholder="Enter key here...",
-            help="Get a free key from openweathermap.org/api"
+            placeholder="أدخل المفتاح هنا...",
+            help="احصل على مفتاح مجاني من openweathermap.org/api"
         )
         
         if not api_key:
-            st.info("To get a free API Key:\n1. Register at openweathermap.org\n2. Go to API Keys\n3. Copy and paste the key here")
+            st.info("💡 **للحصول على API Key مجاني:**\n1. سجل في openweathermap.org\n2. اذهب لـ API Keys\n3. انسخ المفتاح والصقه هنا")
         
-        city = st.text_input("City", "Cairo", help="Example: Riyadh, Dubai, Jeddah")
+        city = st.text_input("🌍 المدينة (بالإنجليزية)", "Cairo", help="مثال: Riyadh, Dubai, Jeddah")
         
-        if st.button("Refresh Weather Data", use_container_width=True):
+        if st.button("🔄 تحديث بيانات الطقس", use_container_width=True):
             st.rerun()
         
         st.divider()
         
+        # باقي الإعدادات
         selected_crop = st.selectbox(
-            "Select Crop",
-            list(CROPS_INFO.keys())
+            "🌱 اختر المحصول",
+            list(CROPS_INFO.keys()),
+            format_func=lambda x: f"{CROPS_INFO[x]['icon']} {x}"
         )
         
         selected_soil = st.selectbox(
-            "Soil Type",
+            "🏜️ نوع التربة",
             list(SOIL_INFO.keys())
         )
         
-        area = st.number_input("Area (square meters)", 100, 10000, 500, 50)
+        area = st.number_input("📏 المساحة (متر مربع)", 100, 10000, 500, 50)
         
         st.divider()
-        st.subheader("Soil Measurements")
+        st.subheader("📊 قياسات التربة")
         
-        soil_moisture = st.slider("Soil Moisture (%)", 10, 80, 45)
-        ph_level = st.slider("pH Level", 4.0, 8.0, 6.5, 0.1)
-        nitrogen = st.slider("Nitrogen Level", 10, 70, 40)
-        phosphorus = st.slider("Phosphorus Level", 10, 60, 35)
-        potassium = st.slider("Potassium Level", 10, 50, 30)
+        soil_moisture = st.slider("رطوبة التربة (%)", 10, 80, 45)
+        ph_level = st.slider("درجة الحموضة (pH)", 4.0, 8.0, 6.5, 0.1)
+        nitrogen = st.slider("نسبة النيتروجين", 10, 70, 40)
+        phosphorus = st.slider("نسبة الفوسفور", 10, 60, 35)
+        potassium = st.slider("نسبة البوتاسيوم", 10, 50, 30)
         
         st.divider()
-        water_available = st.number_input("Available Water (liters/day)", 100, 5000, 1000, 50)
+        water_available = st.number_input("💧 المياه المتاحة (لتر/يوم)", 100, 5000, 1000, 50)
 
+    # جلب بيانات الطقس
     weather_now = get_real_weather(city, api_key)
     
+    # التنبؤ بالذكاء الاصطناعي
     input_features = np.array([[
         weather_now['temperature'],
         weather_now['humidity'],
@@ -395,23 +428,25 @@ with tab1:
     predicted_water = model_water.predict(input_features)[0]
     costs = calculate_costs(selected_crop, area, predicted_yield, predicted_water)
 
-    st.markdown("### Current Weather Conditions")
+    # حالة الطقس الحالية
+    st.markdown("### 🌤️ الحالة الجوية الحالية")
     col1, col2, col3, col4, col5 = st.columns(5)
 
     with col1:
-        st.metric("Temperature", f"{weather_now['temperature']:.1f}°C")
+        st.metric("🌡️ الحرارة", f"{weather_now['temperature']:.1f}°C")
     with col2:
-        st.metric("Humidity", f"{weather_now['humidity']:.1f}%")
+        st.metric("💧 الرطوبة", f"{weather_now['humidity']:.1f}%")
     with col3:
-        st.metric("Rainfall", f"{weather_now['rainfall']:.1f} mm")
+        st.metric("🌧️ الأمطار", f"{weather_now['rainfall']:.1f} مم")
     with col4:
-        st.metric("Wind", f"{weather_now['wind_speed']:.1f} km/h")
+        st.metric("💨 الرياح", f"{weather_now['wind_speed']:.1f} كم/س")
     with col5:
-        st.metric("Status", weather_now['description'])
+        st.metric("📊 الحالة", weather_now['description'])
 
     st.divider()
 
-    st.markdown("### AI Predictions")
+    # التنبؤات الذكية
+    st.markdown("### 🤖 التنبؤات الذكية (AI Predictions)")
     col1, col2, col3 = st.columns(3)
 
     with col1:
@@ -419,8 +454,8 @@ with tab1:
         <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
                     padding: 20px; border-radius: 15px; color: white; text-align: center;'>
             <h2 style='color: white; margin:0;'>{predicted_yield:.1f}%</h2>
-            <p style='margin: 5px 0 0 0;'>Expected Productivity</p>
-            <small>Compared to average</small>
+            <p style='margin: 5px 0 0 0;'>الإنتاجية المتوقعة</p>
+            <small>مقارنة بالمتوسط</small>
         </div>
         """, unsafe_allow_html=True)
 
@@ -428,9 +463,9 @@ with tab1:
         st.markdown(f"""
         <div style='background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); 
                     padding: 20px; border-radius: 15px; color: white; text-align: center;'>
-            <h2 style='color: white; margin:0;'>{predicted_water:.1f} L</h2>
-            <p style='margin: 5px 0 0 0;'>Daily Water Need</p>
-            <small>Based on current conditions</small>
+            <h2 style='color: white; margin:0;'>{predicted_water:.1f} لتر</h2>
+            <p style='margin: 5px 0 0 0;'>احتياج المياه اليومي</p>
+            <small>حسب الظروف الحالية</small>
         </div>
         """, unsafe_allow_html=True)
 
@@ -440,36 +475,37 @@ with tab1:
         <div style='background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); 
                     padding: 20px; border-radius: 15px; color: white; text-align: center;'>
             <h2 style='color: white; margin:0; font-size: 1.3em;'>{harvest_date.strftime('%d/%m/%Y')}</h2>
-            <p style='margin: 5px 0 0 0;'>Expected Harvest Date</p>
-            <small>{CROPS_INFO[selected_crop]['growth_days']} days</small>
+            <p style='margin: 5px 0 0 0;'>موعد الحصاد المتوقع</p>
+            <small>{CROPS_INFO[selected_crop]['growth_days']} يوم</small>
         </div>
         """, unsafe_allow_html=True)
 
     st.divider()
 
-    st.markdown("### Smart Alerts")
+    # التنبيهات
+    st.markdown("### ⚠️ تنبيهات ذكية")
     alerts = []
     crop_info = CROPS_INFO[selected_crop]
 
     if weather_now['temperature'] > crop_info['max_temp']:
-        alerts.append(('warning', f"Temperature too high ({weather_now['temperature']:.1f}°C)"))
+        alerts.append(('warning', f"🌡️ درجة الحرارة مرتفعة جداً ({weather_now['temperature']:.1f}°C)"))
     elif weather_now['temperature'] < crop_info['min_temp']:
-        alerts.append(('error', f"Temperature too low ({weather_now['temperature']:.1f}°C)"))
+        alerts.append(('error', f"❄️ درجة الحرارة منخفضة جداً ({weather_now['temperature']:.1f}°C)"))
 
     if weather_now['rainfall'] > 10:
-        alerts.append(('info', f"Heavy rain - Reduce irrigation to {predicted_water*0.5:.1f} L"))
+        alerts.append(('info', f"🌧️ أمطار غزيرة - قلل الري إلى {predicted_water*0.5:.1f} لتر"))
 
     if soil_moisture < 30:
-        alerts.append(('warning', "Low soil moisture - Increase irrigation"))
+        alerts.append(('warning', "💧 رطوبة التربة منخفضة - زد كمية الري"))
 
     if abs(ph_level - crop_info['ideal_ph']) > 1:
-        alerts.append(('warning', f"Soil pH not ideal - Required: {crop_info['ideal_ph']}"))
+        alerts.append(('warning', f"⚗️ درجة حموضة التربة غير مثالية - المطلوب: {crop_info['ideal_ph']}"))
 
     if water_available < predicted_water * 7:
-        alerts.append(('error', "Available water insufficient for next week"))
+        alerts.append(('error', "🚨 كمية المياه المتاحة غير كافية للأسبوع القادم"))
 
     if predicted_yield < 50:
-        alerts.append(('error', "Conditions not suitable - Recommend postponing planting"))
+        alerts.append(('error', "📉 الظروف غير مناسبة - ننصح بتأجيل الزراعة"))
 
     if alerts:
         for alert_type, message in alerts:
@@ -480,34 +516,35 @@ with tab1:
             else:
                 st.info(message)
     else:
-        st.success("All conditions are ideal for planting!")
+        st.success("✅ جميع الظروف مثالية للزراعة!")
 
     st.divider()
 
+    # الرسوم البيانية
     col1, col2 = st.columns(2)
 
     with col1:
-        st.markdown("### Weather Forecast (7 Days)")
+        st.markdown("### 📈 توقعات الطقس (7 أيام)")
         forecast = generate_weather_forecast(7)
         
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=forecast['date'], y=forecast['temperature'],
-                                mode='lines+markers', name='Temperature',
+                                mode='lines+markers', name='درجة الحرارة',
                                 line=dict(color='#ff6b6b', width=3)))
         fig.add_trace(go.Scatter(x=forecast['date'], y=forecast['humidity'],
-                                mode='lines+markers', name='Humidity',
+                                mode='lines+markers', name='الرطوبة',
                                 line=dict(color='#4ecdc4', width=3)))
         
-        fig.update_layout(height=300, xaxis_title="Date", yaxis_title="Value",
+        fig.update_layout(height=300, xaxis_title="التاريخ", yaxis_title="القيمة",
                          hovermode='x unified', template='plotly_white')
         st.plotly_chart(fig, use_container_width=True)
 
     with col2:
-        st.markdown("### Influencing Factors Analysis")
+        st.markdown("### 🎯 تحليل العوامل المؤثرة")
         
         factors = pd.DataFrame({
-            'Factor': ['Temperature', 'Humidity', 'Nutrients', 'Soil Moisture', 'Soil Type'],
-            'Impact': [
+            'العامل': ['درجة الحرارة', 'الرطوبة', 'العناصر الغذائية', 'رطوبة التربة', 'نوع التربة'],
+            'التأثير': [
                 min(100, (weather_now['temperature'] / crop_info['max_temp']) * 100),
                 min(100, weather_now['humidity']),
                 min(100, (nitrogen + phosphorus + potassium) / 3 * 1.2),
@@ -516,14 +553,15 @@ with tab1:
             ]
         })
         
-        fig = go.Figure(go.Bar(x=factors['Impact'], y=factors['Factor'], orientation='h',
-                              marker=dict(color=factors['Impact'], colorscale='Viridis', showscale=True)))
-        fig.update_layout(height=300, xaxis_title="Suitability (%)", template='plotly_white')
+        fig = go.Figure(go.Bar(x=factors['التأثير'], y=factors['العامل'], orientation='h',
+                              marker=dict(color=factors['التأثير'], colorscale='Viridis', showscale=True)))
+        fig.update_layout(height=300, xaxis_title="نسبة الملاءمة (%)", template='plotly_white')
         st.plotly_chart(fig, use_container_width=True)
 
     st.divider()
 
-    st.markdown("### Weekly Irrigation Schedule (AI Optimized)")
+    # جدول الري
+    st.markdown("### 💧 جدول الري الأسبوعي (مُحسّن بالـ AI)")
 
     weekly_schedule = []
     for i in range(7):
@@ -538,51 +576,53 @@ with tab1:
         evening = adjusted_water * 0.4
         
         weekly_schedule.append({
-            'Day': forecast.iloc[i]['date'].strftime('%A'),
-            'Date': forecast.iloc[i]['date'].strftime('%d/%m'),
-            'Morning (L)': f"{morning:.1f}",
-            'Evening (L)': f"{evening:.1f}",
-            'Fertilization': 'Yes' if i % 3 == 0 else 'No',
-            'Notes': 'Rainy' if day_rain > 5 else 'Dry'
+            'اليوم': forecast.iloc[i]['date'].strftime('%A'),
+            'التاريخ': forecast.iloc[i]['date'].strftime('%d/%m'),
+            'الصباح (لتر)': f"{morning:.1f}",
+            'المساء (لتر)': f"{evening:.1f}",
+            'التسميد': '✅' if i % 3 == 0 else '—',
+            'ملاحظات': '🌧️ أمطار' if day_rain > 5 else '☀️ جاف'
         })
 
     schedule_df = pd.DataFrame(weekly_schedule)
     st.dataframe(schedule_df, use_container_width=True, hide_index=True)
 
-    total_weekly = sum([float(s['Morning (L)']) + float(s['Evening (L)']) for s in weekly_schedule])
+    total_weekly = sum([float(s['الصباح (لتر)']) + float(s['المساء (لتر)']) for s in weekly_schedule])
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Total Weekly Consumption", f"{total_weekly:.1f} L")
+        st.metric("📊 إجمالي استهلاك الأسبوع", f"{total_weekly:.1f} لتر")
     with col2:
         efficiency = (1 - SOIL_INFO[selected_soil]['drainage']) * 100
-        st.metric("Water Use Efficiency", f"{efficiency:.0f}%")
+        st.metric("💚 كفاءة استخدام المياه", f"{efficiency:.0f}%")
     with col3:
         savings = (water_available * 7 - total_weekly) / (water_available * 7) * 100 if water_available * 7 > 0 else 0
-        st.metric("Expected Savings", f"{max(0, savings):.1f}%")
+        st.metric("💰 التوفير المتوقع", f"{max(0, savings):.1f}%")
 
+# ================== TAB 2: دراسات الحالة ==================
 with tab2:
-    st.markdown("## Applied Case Studies")
-    st.markdown("Analysis of 3 different realistic scenarios")
+    st.markdown("## 📊 دراسات الحالة التطبيقية")
+    st.markdown("تحليل 3 سيناريوهات واقعية مختلفة")
     
     for case_name, case_data in CASE_STUDIES.items():
-        with st.expander(f"{case_name}", expanded=False):
-            st.markdown(f"**Description:** {case_data['description']}")
+        with st.expander(f"🔍 {case_name}", expanded=False):
+            st.markdown(f"**الوصف:** {case_data['description']}")
             
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.write(f"**Crop:** {case_data['crop']}")
-                st.write(f"**Soil:** {case_data['soil']}")
-                st.write(f"**Area:** {case_data['area']} m²")
+                st.write(f"🌱 **المحصول:** {case_data['crop']}")
+                st.write(f"🏜️ **التربة:** {case_data['soil']}")
+                st.write(f"📏 **المساحة:** {case_data['area']} م²")
             with col2:
-                st.write(f"**Soil Moisture:** {case_data['soil_moisture']}%")
-                st.write(f"**pH:** {case_data['ph']}")
-                st.write(f"**Nitrogen:** {case_data['nitrogen']}")
+                st.write(f"💧 **رطوبة التربة:** {case_data['soil_moisture']}%")
+                st.write(f"⚗️ **pH:** {case_data['ph']}")
+                st.write(f"🌾 **نيتروجين:** {case_data['nitrogen']}")
             with col3:
-                st.write(f"**Phosphorus:** {case_data['phosphorus']}")
-                st.write(f"**Potassium:** {case_data['potassium']}")
-                st.write(f"**Available Water:** {case_data['water']} L/day")
+                st.write(f"🧪 **فوسفور:** {case_data['phosphorus']}")
+                st.write(f"💎 **بوتاسيوم:** {case_data['potassium']}")
+                st.write(f"💧 **مياه متاحة:** {case_data['water']} لتر/يوم")
             
+            # تشغيل التنبؤ لهذه الحالة
             case_input = np.array([[
                 25, 60, 0,
                 case_data['soil_moisture'],
@@ -599,21 +639,22 @@ with tab2:
             case_costs = calculate_costs(case_data['crop'], case_data['area'], case_yield, case_water)
             
             st.divider()
-            st.markdown("### Analysis Results:")
+            st.markdown("### 📈 نتائج التحليل:")
             
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.metric("Productivity", f"{case_yield:.1f}%")
+                st.metric("الإنتاجية", f"{case_yield:.1f}%")
             with col2:
-                st.metric("Daily Irrigation", f"{case_water:.1f} L")
+                st.metric("الري اليومي", f"{case_water:.1f} لتر")
             with col3:
-                st.metric("Expected Profit", f"{case_costs['profit']:.0f} SAR")
+                st.metric("الربح المتوقع", f"{case_costs['profit']:.0f} ريال")
             with col4:
                 st.metric("ROI", f"{case_costs['roi']:.1f}%")
             
+            # رسم مقارنة
             fig = go.Figure()
             fig.add_trace(go.Bar(
-                x=['Costs', 'Revenue', 'Profit'],
+                x=['التكاليف', 'الإيرادات', 'الربح'],
                 y=[case_costs['total_cost'], case_costs['revenue'], case_costs['profit']],
                 marker_color=['#e74c3c', '#3498db', '#2ecc71'],
                 text=[f"{case_costs['total_cost']:.0f}", 
@@ -621,20 +662,22 @@ with tab2:
                       f"{case_costs['profit']:.0f}"],
                 textposition='auto'
             ))
-            fig.update_layout(height=300, title="Financial Analysis", template='plotly_white')
+            fig.update_layout(height=300, title="التحليل المالي", template='plotly_white')
             st.plotly_chart(fig, use_container_width=True)
 
+# ================== TAB 3: التحليل المالي ==================
 with tab3:
-    st.markdown("## Comprehensive Financial Analysis")
+    st.markdown("## 💰 التحليل المالي الشامل")
     
+    # ملخص التكاليف
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("### Cost Structure")
+        st.markdown("### 💸 هيكل التكاليف")
         
         costs_data = pd.DataFrame({
-            'Item': ['Seeds', 'Water', 'Fertilizers', 'Labor', 'Other'],
-            'Cost': [
+            'البند': ['البذور', 'المياه', 'الأسمدة', 'العمالة', 'أخرى'],
+            'التكلفة': [
                 costs['seeds_cost'],
                 costs['water_cost'],
                 costs['fertilizer_cost'],
@@ -644,64 +687,64 @@ with tab3:
         })
         
         fig = go.Figure(data=[go.Pie(
-            labels=costs_data['Item'],
-            values=costs_data['Cost'],
+            labels=costs_data['البند'],
+            values=costs_data['التكلفة'],
             hole=.4,
             marker_colors=['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6']
         )])
-        fig.update_layout(height=350, title="Cost Distribution")
+        fig.update_layout(height=350, title="توزيع التكاليف")
         st.plotly_chart(fig, use_container_width=True)
         
         st.dataframe(costs_data, use_container_width=True, hide_index=True)
     
     with col2:
-        st.markdown("### Profitability Analysis")
+        st.markdown("### 📊 تحليل الربحية")
         
         profit_data = pd.DataFrame({
-            'Indicator': ['Total Costs', 'Expected Revenue', 'Net Profit'],
-            'Value (SAR)': [costs['total_cost'], costs['revenue'], costs['profit']]
+            'المؤشر': ['إجمالي التكاليف', 'الإيرادات المتوقعة', 'صافي الربح'],
+            'القيمة (ريال)': [costs['total_cost'], costs['revenue'], costs['profit']]
         })
         
         fig = go.Figure(data=[go.Bar(
-            x=profit_data['Indicator'],
-            y=profit_data['Value (SAR)'],
+            x=profit_data['المؤشر'],
+            y=profit_data['القيمة (ريال)'],
             marker_color=['#e74c3c', '#3498db', '#2ecc71'],
-            text=profit_data['Value (SAR)'].round(2),
+            text=profit_data['القيمة (ريال)'].round(2),
             textposition='auto'
         )])
-        fig.update_layout(height=350, title="Financial Indicators", template='plotly_white')
+        fig.update_layout(height=350, title="المؤشرات المالية", template='plotly_white')
         st.plotly_chart(fig, use_container_width=True)
         
         st.dataframe(profit_data, use_container_width=True, hide_index=True)
     
     st.divider()
     
-    st.markdown("### Key Indicators")
+    # المؤشرات الرئيسية
+    st.markdown("### 🎯 المؤشرات الرئيسية")
     
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         st.markdown(f"""
         <div class='cost-card'>
-            <h2 style='color: white; margin:0;'>{costs['expected_yield_kg']:.1f} kg</h2>
-            <p style='margin: 5px 0 0 0;'>Expected Production</p>
+            <h2 style='color: white; margin:0;'>{costs['expected_yield_kg']:.1f} كجم</h2>
+            <p style='margin: 5px 0 0 0;'>الإنتاج المتوقع</p>
         </div>
         """, unsafe_allow_html=True)
-
+    
     with col2:
         st.markdown(f"""
-        <div class='cost-card' style='background: linear-gradient(135deg, #  f093fb 0%, #f5576c 100%);'>
-            <h2 style='color: white; margin:0;'>{costs['total_cost']:.0f} SAR</h2>
-            <p style='margin: 5px 0 0 0;'>Total Costs</p>
+        <div class='cost-card' style='background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);'>
+            <h2 style='color: white; margin:0;'>{costs['total_cost']:.0f} ريال</h2>
+            <p style='margin: 5px 0 0 0;'>إجمالي التكاليف</p>
         </div>
         """, unsafe_allow_html=True)
-
-
+    
     with col3:
         st.markdown(f"""
         <div class='cost-card' style='background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);'>
-            <h2 style='color: white; margin:0;'>{costs['revenue']:.0f} SAR</h2>
-            <p style='margin: 5px 0 0 0;'>Revenue</p>
+            <h2 style='color: white; margin:0;'>{costs['revenue']:.0f} ريال</h2>
+            <p style='margin: 5px 0 0 0;'>الإيرادات</p>
         </div>
         """, unsafe_allow_html=True)
     
@@ -709,14 +752,15 @@ with tab3:
         profit_color = '#2ecc71' if costs['profit'] > 0 else '#e74c3c'
         st.markdown(f"""
         <div class='cost-card' style='background: linear-gradient(135deg, {profit_color} 0%, {profit_color} 100%);'>
-            <h2 style='color: white; margin:0;'>{costs['profit']:.0f} SAR</h2>
-            <p style='margin: 5px 0 0 0;'>Net Profit</p>
+            <h2 style='color: white; margin:0;'>{costs['profit']:.0f} ريال</h2>
+            <p style='margin: 5px 0 0 0;'>صافي الربح</p>
         </div>
         """, unsafe_allow_html=True)
     
     st.divider()
     
-    st.markdown("### Profitability Comparison Between Crops")
+    # مقارنة بين المحاصيل
+    st.markdown("### 🌱 مقارنة الربحية بين المحاصيل")
     
     comparison_data = []
     for crop_name in CROPS_INFO.keys():
@@ -727,26 +771,26 @@ with tab3:
         test_costs = calculate_costs(crop_name, area, test_yield, predicted_water)
         
         comparison_data.append({
-            'Crop': crop_name,
-            'Productivity': test_yield,
-            'Costs': test_costs['total_cost'],
-            'Revenue': test_costs['revenue'],
-            'Profit': test_costs['profit'],
+            'المحصول': f"{CROPS_INFO[crop_name]['icon']} {crop_name}",
+            'الإنتاجية': test_yield,
+            'التكاليف': test_costs['total_cost'],
+            'الإيرادات': test_costs['revenue'],
+            'الربح': test_costs['profit'],
             'ROI': test_costs['roi']
         })
     
     comparison_df = pd.DataFrame(comparison_data)
     
     fig = go.Figure()
-    fig.add_trace(go.Bar(name='Profit', x=comparison_df['Crop'], 
-                         y=comparison_df['Profit'], marker_color='#2ecc71'))
-    fig.add_trace(go.Scatter(name='ROI %', x=comparison_df['Crop'], 
+    fig.add_trace(go.Bar(name='الربح', x=comparison_df['المحصول'], 
+                         y=comparison_df['الربح'], marker_color='#2ecc71'))
+    fig.add_trace(go.Scatter(name='ROI %', x=comparison_df['المحصول'], 
                              y=comparison_df['ROI'], mode='lines+markers',
                              yaxis='y2', marker_color='#e74c3c', line=dict(width=3)))
     
     fig.update_layout(
         height=400,
-        yaxis=dict(title='Profit (SAR)'),
+        yaxis=dict(title='الربح (ريال)'),
         yaxis2=dict(title='ROI (%)', overlaying='y', side='right'),
         hovermode='x unified',
         template='plotly_white'
@@ -755,13 +799,14 @@ with tab3:
     
     st.dataframe(comparison_df, use_container_width=True, hide_index=True)
 
+# ================== Footer ==================
 st.divider()
 st.markdown("""
 <div style='text-align: center; color: #666; padding: 20px;'>
-    <p><strong>Smart Agriculture Decision Support System</strong></p>
-    <p>Powered by Artificial Intelligence | Management Information Systems Department | College of Business Administration</p>
+    <p><strong>نظام مساندة القرار للزراعة الذكية</strong></p>
+    <p>مدعوم بالذكاء الاصطناعي | قسم نظم المعلومات الإدارية | كلية إدارة الأعمال</p>
     <p style='font-size: 12px; margin-top: 10px;'>
-        AI Models: Random Forest | Data: 500+ Records | Real-time Weather API
+        🤖 AI Models: Random Forest | 📊 Data: 500+ Records | 🌍 Real-time Weather API
     </p>
 </div>
-""", unsafe_allow_html=True)      
+""", unsafe_allow_html=True)
